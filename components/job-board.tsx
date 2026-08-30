@@ -3,9 +3,19 @@ import { useEffect,useMemo,useState } from 'react';
 import { ArrowLeft,ArrowUpRight,BriefcaseBusiness,Building2,CalendarDays,MapPin,Search,SlidersHorizontal,WalletCards,X } from 'lucide-react';
 import { sampleJobs,type Job } from '@/lib/jobs';
 const clean=(v:string)=>!v||v==='Não informado'?'Não informado':v;
-const when=(v:string)=>v?new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(new Date(`${v}T12:00:00`)):'Recente';
+const when=(value:string)=>{
+ if(!value)return 'Recente';
+ const text=String(value).trim();
+ let date:Date;
+ const iso=text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+ const br=text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+ if(iso)date=new Date(Number(iso[1]),Number(iso[2])-1,Number(iso[3]),12);
+ else if(br)date=new Date(Number(br[3]),Number(br[2])-1,Number(br[1]),12);
+ else date=new Date(text);
+ return Number.isNaN(date.getTime())?'Recente':new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'short'}).format(date);
+};
 export function JobBoard(){const[jobs,setJobs]=useState(sampleJobs),[query,setQuery]=useState(''),[area,setArea]=useState('Todas'),[model,setModel]=useState('Todos'),[location,setLocation]=useState('Todos'),[selected,setSelected]=useState<Job|null>(null),[loading,setLoading]=useState(true);
- useEffect(()=>{fetch('/api/jobs').then(r=>r.json()).then(d=>setJobs(d.jobs?.length?d.jobs:sampleJobs)).finally(()=>setLoading(false))},[]);
+ useEffect(()=>{fetch('/api/jobs').then(r=>{if(!r.ok)throw new Error('Falha ao carregar vagas');return r.json()}).then(d=>setJobs(Array.isArray(d.jobs)&&d.jobs.length?d.jobs:sampleJobs)).catch(()=>setJobs(sampleJobs)).finally(()=>setLoading(false))},[]);
  useEffect(()=>{document.body.style.overflow=selected?'hidden':'';return()=>{document.body.style.overflow=''}},[selected]);
  const opts=(key:'area'|'model'|'location')=>['Todos',...Array.from(new Set(jobs.map(j=>clean(j[key])).filter(v=>v!=='Não informado'))).sort()],areas=['Todas',...Array.from(new Set(jobs.map(j=>clean(j.area)).filter(v=>v!=='Não informado'))).sort()];
  const filtered=useMemo(()=>jobs.filter(j=>`${j.title} ${j.company} ${j.area} ${j.location}`.toLowerCase().includes(query.toLowerCase())&&(area==='Todas'||j.area===area)&&(model==='Todos'||clean(j.model)===model)&&(location==='Todos'||clean(j.location)===location)),[jobs,query,area,model,location]);
@@ -19,3 +29,4 @@ function Card({job,open}:{job:Job;open:()=>void}){return <article className="fle
 function Tag({icon,text}:{icon:React.ReactNode;text:string}){return <span className="flex max-w-full items-center gap-1.5 rounded-lg bg-[#f4f6f2] px-2.5 py-1.5"><span className="shrink-0">{icon}</span><span className="truncate">{text}</span></span>}
 function Detail({job,close}:{job:Job;close:()=>void}){return <div className="fixed inset-0 z-50 bg-[#0d211a]/55 backdrop-blur-sm sm:grid sm:place-items-center sm:p-6" role="dialog" aria-modal="true"><article className="flex h-full w-full flex-col overflow-y-auto bg-[#f8f9f6] sm:h-auto sm:max-h-[90vh] sm:max-w-3xl sm:rounded-[2rem]"><div className="sticky top-0 flex items-center justify-between border-b border-[#e0e6df] bg-[#f8f9f6]/95 px-5 py-4"><button onClick={close} className="flex gap-2 text-sm font-semibold"><ArrowLeft size={17}/>Voltar às vagas</button><button onClick={close} aria-label="Fechar"><X/></button></div><div className="p-6 sm:p-9"><span className="rounded-full bg-[#e7f1c9] px-3 py-1 text-xs font-bold text-[#49611f]">Candidatura aberta</span><p className="mt-6 flex items-center gap-2 font-semibold text-[#4e6a60]"><Building2 size={18}/>{job.company}</p><h2 className="mt-2 text-3xl font-semibold tracking-[-.04em] sm:text-4xl">{job.title}</h2><div className="mt-7 grid gap-3 sm:grid-cols-2"><Info l="Área" v={job.area}/><Info l="Nível" v={job.level}/><Info l="Modelo" v={job.model}/><Info l="Local" v={job.location}/><Info l="Salário" v={job.salary}/><Info l="Fonte" v={job.source}/></div><div className="mt-8 rounded-2xl border border-[#dce5dc] bg-white p-5"><h3 className="font-semibold">Sobre esta oportunidade</h3><p className="mt-2 text-sm leading-6 text-[#607269]">Esta vaga foi encontrada e verificada pela curadoria. Consulte a página original para ver a descrição completa, requisitos e condições.</p></div><a href={job.applyUrl} target="_blank" rel="noopener noreferrer" className="mt-7 flex w-full justify-center gap-2 rounded-2xl bg-[#173f35] px-6 py-4 font-bold text-white">Candidatar-se na página original <ArrowUpRight size={18}/></a></div></article></div>}
 function Info({l,v}:{l:string;v:string}){return <div className="rounded-2xl border border-[#e0e6df] bg-white p-4"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#7d8c85]">{l}</p><p className="mt-1 text-sm font-semibold">{clean(v)}</p></div>}
+
